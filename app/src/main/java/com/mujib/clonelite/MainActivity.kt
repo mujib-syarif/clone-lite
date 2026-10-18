@@ -31,7 +31,10 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
-        val isWorkProfile = getSystemService(UserManager::class.java)?.isManagedProfile == true
+        val userManager = getSystemService(UserManager::class.java)
+        val isWorkProfile = userManager?.isManagedProfile == true
+        val hasWorkProfile = !isWorkProfile && (userManager?.userProfiles?.size ?: 1) > 1
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(24, 28, 24, 20)
@@ -44,7 +47,11 @@ class MainActivity : Activity() {
             typeface = Typeface.DEFAULT_BOLD
         })
         root.addView(TextView(this).apply {
-            text = if (isWorkProfile) "Work profile · Separate app space" else "Simple dual-app setup using Android"
+            text = when {
+                isWorkProfile -> "Work profile · Separate app space"
+                hasWorkProfile -> "Work profile already exists"
+                else -> "Simple dual-app setup using Android"
+            }
             textSize = 14f
             setTextColor(0xFF596273.toInt())
             setPadding(0, 6, 0, 18)
@@ -54,17 +61,27 @@ class MainActivity : Activity() {
         val scroll = ScrollView(this).apply { addView(content) }
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
-        if (isWorkProfile) {
-            addText(content, "Apps in this profile", 20f, true)
-            addText(content, "Install apps into the work profile first. They will appear here when Android makes them available.", 14f, false)
-            addButton(content, "Open work-profile Play Store") { openWorkStore() }
-            addButton(content, "Refresh app list") { render() }
-            listLaunchableApps(content)
-        } else {
-            addText(content, "Create a separate app space", 20f, true)
-            addText(content, "CloneLite uses Android's built-in work profile. Apps installed there keep separate app data and logins from your personal profile.", 15f, false)
-            addButton(content, "Set up work profile") { startWorkProfileSetup() }
-            addText(content, "Requirements: device support, screen lock/encryption when requested, and no existing work profile. Android normally allows only one managed profile.", 13f, false)
+        when {
+            isWorkProfile -> {
+                addText(content, "Apps in this profile", 20f, true)
+                addText(content, "Install apps into this work profile to keep their data and logins separate from your personal apps.", 14f, false)
+                addButton(content, "Open Play Store in this profile") { openWorkStore() }
+                addButton(content, "Refresh app list") { render() }
+                listLaunchableApps(content)
+            }
+            hasWorkProfile -> {
+                addText(content, "Your Work Profile is already set up", 20f, true)
+                addText(content, "Android reports that a separate profile already exists. Do not set it up again: Android may offer to delete the existing profile and its data.", 15f, false)
+                addText(content, "Next steps: return to your home screen, open the app drawer, find the Work tab or apps with a briefcase badge, then open Play Store there and install Clash of Clans. Launch CloneLite with the briefcase badge to manage apps inside the Work Profile.", 15f, false)
+                addButton(content, "Open home screen") { openHomeScreen() }
+                addButton(content, "Check profile status again") { render() }
+            }
+            else -> {
+                addText(content, "Create a separate app space", 20f, true)
+                addText(content, "CloneLite uses Android's built-in work profile. Apps installed there keep separate app data and logins from your personal profile.", 15f, false)
+                addButton(content, "Set up work profile") { startWorkProfileSetup() }
+                addText(content, "Requirements: device support, screen lock/encryption when requested, and no existing work profile. Android normally allows only one managed profile.", 13f, false)
+            }
         }
         setContentView(root)
     }
@@ -77,6 +94,7 @@ class MainActivity : Activity() {
         val manager = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
         if (!manager.isProvisioningAllowed(DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE)) {
             toast("Setup tidak tersedia. Work Profile mungkin sudah ada atau perangkat membatasi provisioning.")
+            render()
             return
         }
         val admin = ComponentName(this, CloneAdminReceiver::class.java)
@@ -99,6 +117,7 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_PROVISION_PROFILE) {
             toast(if (resultCode == Activity.RESULT_OK) "Wizard selesai. Tunggu Android menyelesaikan Work Profile." else "Setup dibatalkan atau tidak memenuhi syarat.")
+            render()
         }
     }
 
@@ -109,7 +128,7 @@ class MainActivity : Activity() {
             .distinctBy { it.activityInfo.packageName }
             .sortedBy { it.loadLabel(packageManager).toString().lowercase() }
         if (apps.isEmpty()) {
-            addText(target, "Belum ada aplikasi lain di profil ini.", 14f, false)
+            addText(target, "Belum ada aplikasi lain di profil ini. Buka Play Store dengan badge tas kerja untuk memasang CoC.", 14f, false)
             return
         }
         for (app in apps) {
@@ -129,6 +148,14 @@ class MainActivity : Activity() {
             if (playStore != null) startActivity(playStore)
             else startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps")))
         } catch (_: Exception) { toast("Play Store tidak tersedia di profil ini.") }
+    }
+
+    private fun openHomeScreen() {
+        try {
+            startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME))
+        } catch (_: Exception) {
+            toast("Tidak bisa membuka layar utama.")
+        }
     }
 
     private fun addText(target: LinearLayout, value: String, size: Float, bold: Boolean) {
