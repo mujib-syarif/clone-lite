@@ -1,0 +1,49 @@
+name: Virtual Engine Build Check
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/virtual-engine.yml"
+
+jobs:
+  build-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout CloneLite
+        uses: actions/checkout@v4
+
+      - name: Checkout BlackBox engine source
+        uses: actions/checkout@v4
+        with:
+          repository: ALEX5402/NewBlackbox
+          ref: main
+          path: engine
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK and NDK
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;29.0.13846066"
+          yes | sdkmanager --licenses
+
+      - name: Build virtual engine APK from source
+        working-directory: engine
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Upload engine build for verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlackBox-engine-source-build-review-only
+          path: engine/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
