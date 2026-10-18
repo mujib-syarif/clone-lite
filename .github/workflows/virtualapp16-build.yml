@@ -6,9 +6,13 @@ on:
     paths:
       - ".github/workflows/virtualapp16-build.yml"
 
+permissions:
+  contents: read
+
 jobs:
   build-virtualapp16:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout CloneLite workflow repository
         uses: actions/checkout@v4
@@ -25,6 +29,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
+          cache-dependency-path: virtualapp16/**/*.gradle*
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -32,21 +38,27 @@ jobs:
           packages: |
             platform-tools
 
-      - name: Install required Android SDK and NDK
+      - name: Install Android SDK packages
         run: |
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;21.4.7075529"
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
           yes | sdkmanager --licenses
 
       - name: Build VirtualApp_16 APKs from source
         working-directory: virtualapp16
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug
+          ./gradlew --no-daemon --stacktrace assembleDebug
 
-      - name: Upload APKs for device testing
+      - name: List generated APKs
+        working-directory: virtualapp16
+        run: find app/build/outputs/apk -type f -name '*.apk' -print
+
+      - name: Upload APKs for Infinix Hot 11S NFC testing
         uses: actions/upload-artifact@v4
         with:
-          name: VirtualApp-16-source-build
-          path: virtualapp16/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          name: VirtualApp-16-Android11-test
+          path: |
+            virtualapp16/app/build/outputs/apk/debug/*arm64-v8a*.apk
+            virtualapp16/app/build/outputs/apk/debug/*universal*.apk
+          if-no-files-found: warn
           retention-days: 7
