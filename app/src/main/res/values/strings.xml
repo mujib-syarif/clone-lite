@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CloneLite</string>
+    <string name="admin_description">Allows CloneLite to set up its own Android work profile. It does not manage the personal profile.</string>
+</resources>
