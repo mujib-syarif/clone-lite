@@ -2,6 +2,7 @@ package com.mujib.clonelite
 
 import android.app.Activity
 import android.app.admin.DevicePolicyManager
+import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -18,16 +19,18 @@ import android.widget.Toast
 
 class MainActivity : Activity() {
     private lateinit var content: LinearLayout
-    private val spacing = 16
+    // Layout sizes are in dp; convert with the screen density (raw pixel values shrink on dense screens).
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
+    private val spacing: Int get() = dp(16)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        render()
+        // No render() here: onResume() always follows and renders once.
     }
 
     override fun onResume() {
         super.onResume()
-        if (::content.isInitialized) render()
+        render()
     }
 
     private fun render() {
@@ -37,7 +40,7 @@ class MainActivity : Activity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 28, 24, 20)
+            setPadding(dp(24), dp(28), dp(24), dp(20))
             setBackgroundColor(0xFFF6F7FB.toInt())
         }
         root.addView(TextView(this).apply {
@@ -54,7 +57,7 @@ class MainActivity : Activity() {
             }
             textSize = 14f
             setTextColor(0xFF596273.toInt())
-            setPadding(0, 6, 0, 18)
+            setPadding(0, dp(6), 0, dp(18))
         })
 
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -72,7 +75,7 @@ class MainActivity : Activity() {
             hasWorkProfile -> {
                 addText(content, "Your Work Profile is already set up", 20f, true)
                 addText(content, "Android reports that a separate profile already exists. Do not set it up again: Android may offer to delete the existing profile and its data.", 15f, false)
-                addText(content, "Next steps: return to your home screen, open the app drawer, find the Work tab or apps with a briefcase badge, then open Play Store there and install Clash of Clans. Launch CloneLite with the briefcase badge to manage apps inside the Work Profile.", 15f, false)
+                addText(content, "Next steps: return to your home screen, open the app drawer, find the Work tab or apps with a briefcase badge, then open Play Store there and install the app you want to clone. Launch CloneLite with the briefcase badge to manage apps inside the Work Profile.", 15f, false)
                 addButton(content, "Open home screen") { openHomeScreen() }
                 addButton(content, "Check profile status again") { render() }
             }
@@ -101,12 +104,12 @@ class MainActivity : Activity() {
         val intent = Intent(DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE).apply {
             putExtra(DevicePolicyManager.EXTRA_PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME, admin)
         }
-        if (intent.resolveActivity(packageManager) == null) {
-            toast("Wizard Work Profile Android tidak ditemukan.")
-            return
-        }
+        // resolveActivity() is unreliable without a <queries> entry on targetSdk 30+, so just
+        // start the wizard and handle the missing-activity case.
         try {
             startActivityForResult(intent, REQUEST_PROVISION_PROFILE)
+        } catch (error: ActivityNotFoundException) {
+            toast("Wizard Work Profile Android tidak ditemukan.")
         } catch (error: Exception) {
             toast("Tidak bisa memulai setup: " + (error.localizedMessage ?: "ditolak Android"))
         }
@@ -128,7 +131,7 @@ class MainActivity : Activity() {
             .distinctBy { it.activityInfo.packageName }
             .sortedBy { it.loadLabel(packageManager).toString().lowercase() }
         if (apps.isEmpty()) {
-            addText(target, "Belum ada aplikasi lain di profil ini. Buka Play Store dengan badge tas kerja untuk memasang CoC.", 14f, false)
+            addText(target, "Belum ada aplikasi lain di profil ini. Buka Play Store dengan badge tas kerja untuk memasang aplikasi yang ingin dipisahkan.", 14f, false)
             return
         }
         for (app in apps) {
@@ -175,7 +178,7 @@ class MainActivity : Activity() {
             textSize = 15f
             setOnClickListener { action() }
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = 8
+            bottomMargin = dp(8)
         })
     }
 
